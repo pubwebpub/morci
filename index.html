@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morci vagy, Manó?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&family=Pacifico&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            overflow: hidden;
+        }
+
+        .main-text {
+            font-family: 'Pacifico', cursive;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+        }
+
+        .emoji-float {
+            position: absolute;
+            animation: float-random 2.5s ease-out forwards;
+            pointer-events: none;
+            font-size: 32px;
+            opacity: 0;
+        }
+
+        @keyframes float-random {
+            0% {
+                transform: translateY(0) translateX(0) rotate(0deg) scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-250px) translateX(var(--tx)) rotate(var(--rot)) scale(1.2);
+                opacity: 0;
+            }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) rotate(-3deg); }
+            25% { transform: translateY(-15px) rotate(3deg); }
+            50% { transform: translateY(0) rotate(-3deg); }
+            75% { transform: translateY(-8px) rotate(2deg); }
+        }
+
+        .bounce {
+            animation: bounce 0.6s ease-in-out;
+        }
+
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            50% { transform: rotate(5deg); }
+            75% { transform: rotate(-3deg); }
+        }
+
+        .wiggle {
+            animation: wiggle 0.5s ease-in-out;
+        }
+
+        @keyframes colorShift {
+            0% { filter: hue-rotate(0deg) brightness(1); }
+            50% { filter: hue-rotate(30deg) brightness(1.2); }
+            100% { filter: hue-rotate(0deg) brightness(1); }
+        }
+
+        .color-shift {
+            animation: colorShift 1s ease-in-out;
+        }
+
+        .message {
+            font-family: 'Quicksand', sans-serif;
+            animation: fadeInOut 6s ease-in-out forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(20px) scale(0.9); }
+            15% { opacity: 1; transform: translateY(0) scale(1); }
+            85% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+        }
+
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .question-mark {
+            position: absolute;
+            animation: jump-around 1.2s ease-out forwards;
+            pointer-events: none;
+            font-size: 36px;
+            font-weight: bold;
+            opacity: 0;
+        }
+
+        @keyframes jump-around {
+            0% {
+                transform: translateY(0) scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: translateY(-100px) scale(1.5);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-180px) scale(0.8);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-200 via-pink-200 to-yellow-200 transition-all duration-1000">
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <div class="text-center p-8">
+        <h1 id="main-text" class="main-text text-5xl md:text-7xl lg:text-8xl text-white mb-8 transition-all duration-300">
+            Morci vagy, Manó?
+        </h1>
+        <div id="message-container" class="h-16"></div>
+    </div>
+
+    <script>
+        const mainText = document.getElementById('main-text');
+        const messageContainer = document.getElementById('message-container');
+        const body = document.body;
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let clickCount = 0;
+        let lastClickTime = 0;
+        let confettiParticles = [];
+
+        // Hangok létrehozása Web Audio API-val
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(frequency, duration, type = 'sine') {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function createQuestionMark(x, y) {
+            const colors = ['#FF6B6B', '#FFA500', '#FFD700', '#FF69B4'];
+            const qm = document.createElement('div');
+            qm.className = 'question-mark';
+            qm.textContent = '?';
+            qm.style.left = x + 'px';
+            qm.style.top = y + 'px';
+            qm.style.color = colors[Math.floor(Math.random() * colors.length)];
+            document.body.appendChild(qm);
+
+            setTimeout(() => qm.remove(), 1200);
+        }
+
+        function createEmojiFloat(x, y) {
+            const emojis = ['😤', '😾', '😒', '🙄', '😑', '🤨', '😠'];
+            const emoji = document.createElement('div');
+            emoji.className = 'emoji-float';
+            emoji.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            emoji.style.left = x + 'px';
+            emoji.style.top = y + 'px';
+            emoji.style.setProperty('--tx', `${(Math.random() - 0.5) * 200}px`);
+            emoji.style.setProperty('--rot', `${(Math.random() - 0.5) * 360}deg`);
+            document.body.appendChild(emoji);
+
+            setTimeout(() => emoji.remove(), 2500);
+        }
+
+        class ConfettiParticle {
+            constructor(x, y, intensity = 1) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 10 * intensity + 4;
+                this.speedX = (Math.random() - 0.5) * 10 * intensity;
+                this.speedY = Math.random() * -18 * intensity - 5;
+                this.gravity = 0.6;
+                this.colors = ['#FF6B6B', '#FFA500', '#FFD700', '#FF69B4', '#FFB6C1', '#FFA07A'];
+                this.color = this.colors[Math.floor(Math.random() * this.colors.length)];
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = (Math.random() - 0.5) * 15;
+                this.opacity = 1;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += this.gravity;
+                this.rotation += this.rotationSpeed;
+
+                if (this.y > canvas.height) {
+                    this.opacity -= 0.05;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+                ctx.restore();
+            }
+        }
+
+        function createConfetti(x, y, amount = 50, intensity = 1) {
+            for (let i = 0; i < amount; i++) {
+                confettiParticles.push(new ConfettiParticle(x, y, intensity));
+            }
+        }
+
+        function animateConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            confettiParticles = confettiParticles.filter(p => p.opacity > 0);
+
+            confettiParticles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            if (confettiParticles.length > 0) {
+                requestAnimationFrame(animateConfetti);
+            }
+        }
+
+        function showMessage(text) {
+            const message = document.createElement('div');
+            message.className = 'message text-2xl md:text-4xl text-white font-bold drop-shadow-lg';
+            message.textContent = text;
+            messageContainer.appendChild(message);
+
+            setTimeout(() => message.remove(), 6000);
+        }
+
+        function handleClick(e) {
+            const currentTime = Date.now();
+            const timeDiff = currentTime - lastClickTime;
+
+            if (timeDiff < 500) {
+                clickCount++;
+            } else {
+                clickCount = 1;
+            }
+
+            lastClickTime = currentTime;
+
+            const rect = mainText.getBoundingClientRect();
+            const x = e.clientX || rect.left + rect.width / 2;
+            const y = e.clientY || rect.top + rect.height / 2;
+
+            // Első kattintás - Kíváncsi vagyok!
+            if (clickCount === 1) {
+                mainText.classList.add('bounce');
+                setTimeout(() => mainText.classList.remove('bounce'), 600);
+
+                for (let i = 0; i < 8; i++) {
+                    setTimeout(() => {
+                        createQuestionMark(
+                            x + (Math.random() - 0.5) * 150,
+                            y + (Math.random() - 0.5) * 100
+                        );
+                    }, i * 80);
+                }
+
+                // Kíváncsi hang (felfelé menő)
+                playSound(392, 0.15, 'square'); // G4
+                setTimeout(() => playSound(494, 0.15, 'square'), 100); // B4
+            }
+
+            // Második kattintás - Ejha, morci vagy?
+            else if (clickCount === 2) {
+                mainText.classList.add('wiggle');
+                body.classList.add('color-shift');
+
+                body.style.background = 'linear-gradient(to bottom right, #FF9A8B, #FF6A88, #FF99AC)';
+
+                for (let i = 0; i < 12; i++) {
+                    setTimeout(() => {
+                        createEmojiFloat(
+                            x + (Math.random() - 0.5) * 200,
+                            y + (Math.random() - 0.5) * 150
+                        );
+                    }, i * 100);
+                }
+
+                createConfetti(x, y, 60, 1);
+                animateConfetti();
+
+                // Vicces "lebukás" hang
+                playSound(330, 0.2, 'sawtooth'); // E4
+                setTimeout(() => playSound(294, 0.2, 'sawtooth'), 150); // D4
+                setTimeout(() => playSound(262, 0.3, 'sawtooth'), 300); // C4
+
+                setTimeout(() => {
+                    mainText.classList.remove('wiggle');
+                    body.classList.remove('color-shift');
+                    body.style.background = 'linear-gradient(to bottom right, #ffd7a799, #ffc0cb99, #fff9c499)';
+                }, 1000);
+            }
+
+            // Harmadik kattintás - Verdict!
+            else if (clickCount >= 3) {
+                const messages = [
+                    'Nahát, tényleg morci vagy! 😤',
+                    'Aha! Tudtam! 🙄',
+                    'Akkor semmi baj, csak morcolsz! 😊',
+                    'De azért szeretlek! 💕',
+                    'Jaj, ne morcolj már! 😄'
+                ];
+
+                showMessage(messages[Math.floor(Math.random() * messages.length)]);
+
+                createConfetti(canvas.width / 2, canvas.height / 3, 250, 2.5);
+                animateConfetti();
+
+                // Vidám "leleplezés" dallam
+                playSound(523.25, 0.12); // C5
+                setTimeout(() => playSound(587.33, 0.12), 100); // D5
+                setTimeout(() => playSound(659.25, 0.12), 200); // E5
+                setTimeout(() => playSound(783.99, 0.15), 300); // G5
+                setTimeout(() => playSound(1046.50, 0.4), 450); // C6
+                setTimeout(() => playSound(783.99, 0.2), 600); // G5
+
+                clickCount = 0;
+            }
+
+            // Vibrálás mobilon
+            if (navigator.vibrate) {
+                if (clickCount === 1) {
+                    navigator.vibrate([30, 20, 30]);
+                } else if (clickCount === 2) {
+                    navigator.vibrate([50, 30, 50, 30, 50]);
+                } else {
+                    navigator.vibrate([100, 50, 100, 50, 100]);
+                }
+            }
+        }
+
+        mainText.addEventListener('click', handleClick);
+        mainText.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleClick(e.touches[0] || e.changedTouches[0]);
+        });
+
+        // Rázás detektálás - "Ne morcolj!" üzenet
+        let lastX = 0, lastY = 0, lastZ = 0;
+        let shakeThreshold = 18;
+        let lastShake = 0;
+
+        if (window.DeviceMotionEvent) {
+            window.addEventListener('devicemotion', (e) => {
+                const acc = e.accelerationIncludingGravity;
+                const deltaX = Math.abs(acc.x - lastX);
+                const deltaY = Math.abs(acc.y - lastY);
+                const deltaZ = Math.abs(acc.z - lastZ);
+
+                const now = Date.now();
+
+                if (deltaX + deltaY + deltaZ > shakeThreshold && now - lastShake > 2000) {
+                    lastShake = now;
+
+                    showMessage('Hé, ne rázz! 😄');
+
+                    mainText.classList.add('wiggle');
+                    setTimeout(() => mainText.classList.remove('wiggle'), 500);
+
+                    createConfetti(window.innerWidth / 2, window.innerHeight / 2, 80, 1.5);
+                    animateConfetti();
+
+                    playSound(440, 0.2, 'triangle');
+                    setTimeout(() => playSound(392, 0.2, 'triangle'), 150);
+
+                    if (navigator.vibrate) {
+                        navigator.vibrate([100, 50, 100]);
+                    }
+                }
+
+                lastX = acc.x;
+                lastY = acc.y;
+                lastZ = acc.z;
+            });
+        }
+
+        // Ablak átméretezés
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
